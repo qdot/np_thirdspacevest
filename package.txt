@@ -4,5 +4,5 @@
 NAME=np_thirdspacevest
 BUILDTYPE=multi
 SRCS=np_thirdspacevest.flext.cpp 
-CFLAGS=-I../library/usr_darwin_10.6_x86/include
+CFLAGS=-I../library/darwin_10.6_x86/include/
 LIBS+=../library/darwin_10.6_x86/lib/libthirdspacevest.a ../library/darwin_10.6_x86/lib/libusb-1.0.a  -framework IOKit -framework CoreFoundation

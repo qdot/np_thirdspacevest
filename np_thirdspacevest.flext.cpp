@@ -56,13 +56,12 @@ public:
 	{
 		AddInAnything("Command Input");
 		AddOutBang("Bangs on successful connection/command");
-		FLEXT_ADDMETHOD_(0, "close", close);
 		FLEXT_ADDMETHOD_(0, "start", start);
 		FLEXT_ADDMETHOD_(0, "stop", stop);
 		FLEXT_ADDMETHOD_(0, "count", count);
 		FLEXT_ADDMETHOD(0, anything);
 
-		post("Third Space Vest External v1.0.0");
+		post("Third Space Vest External v0.1");
 		post("by Nonpolynomial Labs (http://www.nonpolynomial.com)");
 		post("Updates at http://www.github.com/qdot/np_thirdspacevest");
 		post("Compiled on " __DATE__ " " __TIME__);
@@ -70,9 +69,9 @@ public:
 
 	virtual ~np_thirdspacevest()
 	{
-		if(m_tsvDevice->_is_open)
+		if(m_shouldRun)
 		{
-			close();
+			stop();
 		}
 		thirdspacevest_delete(m_tsvDevice);
 	}
@@ -80,79 +79,46 @@ public:
 protected:
 	typedef std::pair<int,int> EffectPair;
 	thirdspacevest_device* m_tsvDevice;
-	std::deque< EffectPair > m_tsvEffectQueue;
+	std::deque< EffectPair > m_effectQueue;
 	ThrMutex m_effectMutex;
 	bool m_shouldRun;
 	
 	void anything(const t_symbol *msg,int argc,t_atom *argv)
 	{				
-		if(!strcmp(msg->s_name, "open"))
+		if(!strcmp(msg->s_name, "effect"))
 		{
-			int ret;
-			if(m_tsvDevice->_is_open)
+			if(!m_shouldRun)
 			{
-				close();
+				post("np_thirdspacevest - Vest needs to be opened before effects can be sent");
+				return;
 			}
-			if(argc == 1)
+			if(argc != 2)
 			{
-				post("np_thirdspacevest - Opening %d", GetInt(argv[0]));
-				ret = thirdspacevest_open(m_tsvDevice, GetInt(argv[0]));
+				post("np_thirdspacevest - Effect requires 2 arguments (speed and index)");
+				return;
 			}
-			else
-			{
-				post("np_thirdspacevest - Opening first device");
-				ret = thirdspacevest_open(m_tsvDevice, 0);
-			}
-			if(ret >= 0)
-			{
-				ToOutBang(0);
-			}
-			else
-			{
-				post("np_thirdspacevest - Cannot connect to thirdspacevest");
-			}
-			return;
-		}
-		if (!strcmp(msg->s_name, "bang"))
-		{
-			poll();
+			int index = GetInt(argv[0]);
+			int speed = GetInt(argv[1]);
+			addEffectToQueue(index, speed);
+			ToOutBang(0);
 			return;
 		}
 		post("np_thirdspacevest - Not a valid np_thirdspacevest message: %s", msg->s_name);
 	}
 
+	void stop()
+	{
+		m_shouldRun = false;
+		StopThreads();
+		ToOutBang(0);
+	}
+	
 	void count()
 	{
 		post("np_thirdspacevest - thirdspacevests Connected to System: %d", thirdspacevest_get_count(m_tsvDevice));
 		ToOutBang(0);
 	}
 	
-	void close()
-	{
-		if(!m_tsvDevice->_is_open)
-		{
-			post("np_thirdspacevest - No device currently open");
-			return;
-		}
-		if(m_shouldRun)
-		{
-			stop();
-		}
-		thirdspacevest_close(m_tsvDevice);
-		post("np_thirdspacevest - Device closed");
-	}
-
-	
-	void stop()
-	{
-		if(!m_shouldRun)
-		{
-			post("np_thirdspacevest - No I/O thread currently running");
-			return;
-		}
-		m_shouldRun = false;
-	}
-
 	void addEffectToQueue(int index, int speed)
 	{
 		ScopedMutex m(m_effectMutex);
@@ -161,27 +127,34 @@ protected:
 	
 	void start()
 	{
-		if(!m_tsvDevice->_is_open)
+		if(m_tsvDevice->_is_open)
 		{
 			Lock();
-			post("np_thirdspacevest - No device currently open");
+			post("np_thirdspacevest - Thread already running");
 			Unlock();
 			return;
 		}
+
+		post("np_thirdspacevest - Opening first device");
+		int ret = thirdspacevest_open(m_tsvDevice, 0);
+
 		m_shouldRun = true;
 		std::pair<int, int> current_effect;
 		while(m_shouldRun)
 		{
-			if(m_effectQueue.length() == 0)
+			if(m_effectQueue.size() == 0)
 			{
 				Sleep(.01);
+				continue;
 			}
 			{
 				ScopedMutex m(m_effectMutex);
-				current_effect = m_effectQueue.pop_back();
+				current_effect = m_effectQueue.back();
+				m_effectQueue.pop_back();
 			}
 			thirdspacevest_send_effect(m_tsvDevice, current_effect.first, current_effect.second);
 		}
+		thirdspacevest_close(m_tsvDevice);
 		Lock();
 		post("np_thirdspacevest - Exiting thread loop");
 		Unlock();
@@ -192,7 +165,6 @@ private:
 	FLEXT_CALLBACK_A(anything)
 	FLEXT_THREAD(start)
 	FLEXT_CALLBACK(count)
-	FLEXT_CALLBACK(close)
 	FLEXT_CALLBACK(stop)
 };
 

@@ -77,10 +77,15 @@ steps:
 === Mac OS X ===
 
 You will need to install the "Third Space Vest OS X Extension" in
-order to use the third space vest on OS X. The file and installation
-instructions are available on the libthirdspacevest sourceforge site.
+order to use the third space vest on OS X. This extension is included
+with binary distributions of np_thirdspacevest. Just copy the
+"ThirdSpaceVestNullDriver.kext" to /System/Library/Extensions and
+either run kextload on it from the terminal, or reboot.
 
-http://sourceforge.net/projects/libthirdspacevest
+If you are building from source, the file and installation
+instructions are available on the libthirdspacevest github site.
+
+http://github.com/qdot/libthirdspacevest
 
 === Linux ===
 
